@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GPU & LLM Master Guide</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
+
+:root{
+  --bg:#070809;--s1:#0c0e11;--s2:#111418;--s3:#161c24;
+  --b1:#1a2130;--b2:#243040;
+  --t1:#dde4ef;--t2:#8a9bb5;--t3:#4f5f78;
+  --cyan:#00d4aa;--cyan2:rgba(0,212,170,.08);--cyan3:rgba(0,212,170,.18);
+  --gold:#e8b84b;--gold2:rgba(232,184,75,.08);--gold3:rgba(232,184,75,.18);
+  --coral:#ff6b6b;--coral2:rgba(255,107,107,.08);--coral3:rgba(255,107,107,.18);
+  --violet:#9b7bea;--violet2:rgba(155,123,234,.08);
+  --green:#3ddc84;--green2:rgba(61,220,132,.08);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t2);font-size:14px;line-height:1.75;overflow-x:hidden}
+
+/* ══════ PROGRESS ══════ */
+#prog{position:fixed;top:0;left:0;height:2px;width:0%;background:linear-gradient(90deg,var(--cyan),var(--gold));z-index:999;transition:width .1s}
+
+/* ══════ HERO ══════ */
+.hero{
+  position:relative;min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;padding:80px 20px 60px;
+  overflow:hidden;
+}
+.hero-mesh{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 700px 400px at 15% 50%,rgba(0,212,170,.06),transparent 65%),
+    radial-gradient(ellipse 600px 350px at 85% 45%,rgba(155,123,234,.045),transparent 65%),
+    radial-gradient(ellipse 400px 300px at 55% 80%,rgba(232,184,75,.04),transparent 60%);
+}
+.hero-grid{
+  position:absolute;inset:0;
+  background:linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+             linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+  background-size:56px 56px;
+  mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,black 20%,transparent 75%);
+  -webkit-mask-image:radial-gradient(ellipse 70% 70% at 50% 50%,black 20%,transparent 75%);
+}
+.hero-content{position:relative;z-index:2;max-width:760px}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:var(--s2);border:1px solid var(--b1);border-radius:24px;
+  padding:6px 18px;font-size:11px;color:var(--t3);letter-spacing:.8px;margin-bottom:28px;
+}
+.hero-badge .pulse{
+  width:7px;height:7px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan);animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.hero h1{
+  font-family:'Bebas Neue',sans-serif;
+  font-size:clamp(48px,9vw,88px);letter-spacing:2px;
+  color:var(--t1);line-height:1.0;margin-bottom:22px;
+}
+.hero h1 .accent{color:var(--cyan)}
+.hero h1 .dim{color:var(--t3)}
+.hero>p,.hero-content>p{color:var(--t3);font-size:15px;max-width:540px;margin:0 auto 32px;line-height:1.7}
+.hero-pills{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.hero-pill{
+  display:flex;align-items:center;gap:7px;
+  background:var(--s2);border:1px solid var(--b1);border-radius:8px;
+  padding:8px 14px;font-size:12px;color:var(--t3);
+}
+.hero-pill .ico{font-size:15px}
+.scroll-cue{
+  position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  color:var(--t3);font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  animation:bob 2.2s ease-in-out infinite;
+}
+.scroll-cue .chevron{width:16px;height:16px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg)}
+@keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(7px)}}
+
+/* ══════ NAV ══════ */
+.nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(7,8,9,.82);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--b1);
+  padding:0 20px;display:flex;align-items:center;justify-content:center;
+  gap:4px;height:48px;flex-wrap:wrap;
+}
+.nav a{
+  color:var(--t3);font-size:11px;letter-spacing:.6px;text-transform:uppercase;
+  padding:6px 13px;border-radius:5px;text-decoration:none;
+  border:1px solid transparent;transition:all .2s;white-space:nowrap;
+}
+.nav a:hover,.nav a.active{color:var(--cyan);border-color:var(--cyan3);background:var(--cyan2)}
+
+/* ══════ SECTION SHELL ══════ */
+.sec{max-width:860px;margin:0 auto;padding:72px 24px}
+.sec+.sec{border-top:1px solid var(--b1)}
+.sec-head{display:flex;align-items:flex-start;gap:18px;margin-bottom:30px}
+.sec-num{
+  flex-shrink:0;width:40px;height:40px;border-radius:10px;
+  background:var(--s2);border:1px solid var(--b1);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'DM Mono',monospace;font-size:16px;color:var(--cyan);font-weight:500;
+}
+.sec-txt .tag{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);font-weight:600;margin-bottom:4px}
+.sec-txt h2{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:1px;color:var(--t1);line-height:1.2}
+p{margin-bottom:13px;color:var(--t2);font-size:13.5px}
+p.lead{font-size:15px;color:var(--t3);margin-bottom:18px}
+strong{color:var(--t1)}
+code{background:var(--s2);border:1px solid var(--b1);padding:2px 7px;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;color:var(--cyan)}
+
+/* ══════ ANALOGY ══════ */
+.analogy{
+  background:var(--s1);border:1px solid var(--b1);border-radius:10px;
+  padding:18px 20px;margin:18px 0;position:relative;overflow:hidden;
+}
+.analogy::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--cyan),var(--violet))}
+.analogy .a-tag{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--cyan);font-weight:600;margin-bottom:7px;display:flex;align-items:center;gap:6px}
+.analogy p{margin-bottom:0;font-size:13.5px}
+
+/* ══════ CALC BLOCK ══════ */
+.calc{background:var(--s1);border:1px solid var(--b1);border-radius:10px;margin:18px 0;overflow:hidden}
+.calc-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 14px;border-bottom:1px solid var(--b1);background:rgba(255,255,255,.015);
+}
+.dots{display:flex;gap:5px}
+.dots span{width:9px;height:9px;border-radius:50%}
+.dots .r{background:#ff5f57}.dots .y{background:#ffbd2e}.dots .g{background:#28c840}
+.calc-hdr .lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--t3);letter-spacing:.8px;text-transform:uppercase}
+.c-lines{padding:16px 18px}
+.c-line{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.035)}
+.c-line:last-child{border-bottom:none}
+.c-n{
+  flex-shrink:0;width:20px;height:20px;border-radius:5px;
+  background:var(--cyan2);border:1px solid var(--cyan3);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);font-weight:500;margin-top:2px;
+}
+.c-body{flex:1}
+.c-formula{font-family:'DM Mono',monospace;font-size:13px;color:var(--t1);margin-bottom:3px;line-height:1.6}
+.c-why{font-size:12px;color:var(--t3);line-height:1.55}
+.c-res{
+  display:inline-block;margin-top:6px;padding:4px 10px;border-radius:5px;
+  font-family:'DM Mono',monospace;font-size:11.5px;font-weight:500;
+}
+.c-res.g{background:var(--green2);color:var(--green);border:1px solid rgba(61,220,132,.18)}
+.c-res.c{background:var(--cyan2);color:var(--cyan);border:1px solid var(--cyan3)}
+.c-res.a{background:var(--gold2);color:var(--gold);border:1px solid var(--gold3)}
+.c-res.r{background:var(--coral2);color:var(--coral);border:1px solid var(--coral3)}
+.f-v{color:var(--cyan)}.f-n{color:var(--gold)}.f-o{color:var(--coral)}.f-e{color:var(--t3)}.f-r{color:var(--green);font-weight:500}
+
+/* ══════ COMPARE ROW ══════ */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
+.cmp-card{background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:18px;text-align:center;transition:border-color .2s}
+.cmp-card:hover{border-color:var(--b2)}
+.cmp-card h4{font-size:13px;color:var(--t1);margin-bottom:8px;font-weight:500}
+.cmp-card p{font-size:12px;color:var(--t3);margin-bottom:0}
+.cores{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-bottom:10px}
+.core{border-radius:3px}
+
+/* ══════ PRECISION STACK ══════ */
+.prec-stack{display:flex;flex-direction:column;gap:7px;margin:16px 0}
+.prec-row{
+  display:grid;grid-template-columns:70px 1fr 100px;align-items:center;gap:12px;
+  background:var(--s2);border:1px solid var(--b1);border-radius:8px;
+  padding:11px 15px;transition:border-color .2s;
+}
+.prec-row:hover{border-color:var(--b2)}
+.prec-row .bits{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;text-align:center}
+.prec-row .info h5{font-size:12.5px;color:var(--t1);margin-bottom:1px;font-weight:500}
+.prec-row .info p{font-size:11px;color:var(--t3);margin:0}
+.prec-row .bar-wrap{text-align:right}
+.prec-row .bar-lbl{font-size:10.5px;color:var(--t3);margin-bottom:3px}
+.prec-row .bar-bg{height:12px;background:var(--s1);border-radius:3px;overflow:hidden}
+.prec-row .bar-fg{height:100%;border-radius:3px}
+
+/* ══════ INTERACTIVE CALC PANEL ══════ */
+.panel{background:var(--s2);border:1px solid var(--b1);border-radius:12px;padding:24px;margin:22px 0}
+.panel h3{font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:1px;color:var(--t1);margin-bottom:4px}
+.panel>.lead{font-size:12px;color:var(--t3);margin-bottom:18px}
+.inp-row{display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap}
+.inp-row label{width:170px;font-size:12px;color:var(--t3);flex-shrink:0}
+.inp-row input,.inp-row select{
+  background:var(--s1);border:1px solid var(--b1);color:var(--t1);
+  font-family:inherit;font-size:13px;padding:7px 11px;border-radius:6px;
+  width:200px;outline:none;transition:border-color .2s;
+}
+.inp-row input:focus,.inp-row select:focus{border-color:var(--cyan)}
+.inp-row select{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234f5f78'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
+.inp-row select option{background:var(--s2)}
+.result-box{
+  margin-top:20px;padding-top:18px;border-top:1px solid var(--b1);
+  display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;
+}
+.res-main .big{font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:1px;line-height:1}
+.res-main .big-lbl{font-size:10px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-top:3px}
+.res-detail{flex:1;font-size:11.5px;color:var(--t3);line-height:2}
+.res-detail .hl{color:var(--t1);font-weight:500}
+.gpu-suggest{margin-top:16px;padding-top:14px;border-top:1px solid var(--b1);display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.gpu-suggest .lbl{font-size:10px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-right:4px}
+.gpu-chip{
+  background:var(--cyan2);border:1px solid var(--cyan3);color:var(--cyan);
+  padding:4px 11px;border-radius:4px;font-size:11px;font-weight:500;
+}
+.gpu-chip.warn{background:var(--gold2);border-color:var(--gold3);color:var(--gold)}
+.gpu-chip.bad{background:var(--coral2);border-color:var(--coral3);color:var(--coral)}
+
+/* ══════ GPU BARS ══════ */
+.bar-section{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin:20px 0}
+.bar-group{margin-bottom:11px}
+.bar-top{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px}
+.bar-top .nm{color:var(--t1);font-weight:500}.bar-top .vl{color:var(--t3)}
+.bar-bg2{height:20px;background:var(--s1);border-radius:4px;overflow:hidden;position:relative}
+.bar-fg2{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:8px;font-size:9.5px;font-weight:600;color:rgba(0,0,0,.65);transition:width .5s}
+.bar-section-title{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:10px;font-weight:600}
+
+/* ══════ MODEL TABLE ══════ */
+.model-tbl{border-radius:10px;border:1px solid var(--b1);overflow:hidden;margin:18px 0}
+.mtbl-hdr{
+  display:grid;grid-template-columns:200px 1fr 80px;gap:12px;
+  padding:9px 16px;background:rgba(0,212,170,.05);
+  border-bottom:1px solid var(--b1);
+}
+.mtbl-hdr span{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--cyan);font-weight:600}
+.mtbl-row{
+  display:grid;grid-template-columns:200px 1fr 80px;gap:12px;
+  align-items:center;padding:11px 16px;border-bottom:1px solid rgba(26,33,48,.6);
+  transition:background .15s;
+}
+.mtbl-row:last-child{border-bottom:none}
+.mtbl-row:hover{background:rgba(255,255,255,.02)}
+.mtbl-row .m-name{font-weight:500;color:var(--t1);font-size:13px}
+.mtbl-row .m-sub{font-size:10.5px;color:var(--t3)}
+.mtbl-row .m-need{font-size:12.5px;color:var(--t2)}
+.mtbl-row .m-need strong{color:var(--cyan)}
+.tag{font-size:9.5px;padding:3px 9px;border-radius:4px;font-weight:600;text-align:center}
+.tg{background:var(--green2);color:var(--green)}
+.ta{background:var(--gold2);color:var(--gold)}
+.tr{background:var(--coral2);color:var(--coral)}
+
+/* ══════ TIPS ROW ══════ */
+.tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:20px 0}
+.tip{background:var(--s2);border:1px solid var(--b1);border-radius:9px;padding:16px;transition:border-color .2s}
+.tip:hover{border-color:var(--b2)}
+.tip .t-ico{font-size:20px;margin-bottom:7px}
+.tip h5{font-size:12.5px;color:var(--t1);margin-bottom:4px;font-weight:500}
+.tip p{font-size:11.5px;color:var(--t3);margin:0}
+
+/* ══════ FOOTER ══════ */
+.footer{text-align:center;padding:48px 20px;color:var(--t3);font-size:11px;border-top:1px solid var(--b1)}
+
+/* scrollbar */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--b1);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--b2)}
+
+@media(max-width:600px){
+  .cmp{grid-template-columns:1fr}
+  .bar-section{grid-template-columns:1fr}
+  .mtbl-hdr,.mtbl-row{grid-template-columns:1fr auto;} 
+  .mtbl-hdr span:first-child,.mtbl-row .m-name{display:block}
+}
+</style>
+</head>
+<body>
+
+<div id="prog"></div>
+
+<!-- ══════ HERO ══════ -->
+<section class="hero">
+  <div class="hero-mesh"></div>
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="hero-badge"><span class="pulse"></span> Interactive Guide + Calculator</div>
+    <h1>GPUs & LLMs<br><span class="accent">DECODED</span><br><span class="dim">— FROM SCRATCH —</span></h1>
+    <p>Learn exactly how parameters, VRAM, training, and inference work — then use the live calculator to check any model against any GPU. Every formula is shown step-by-step.</p>
+    <div class="hero-pills">
+      <div class="hero-pill"><span class="ico">📖</span> Step-by-step theory</div>
+      <div class="hero-pill"><span class="ico">🧮</span> Line-by-line math</div>
+      <div class="hero-pill"><span class="ico">🎛️</span> Live VRAM calculator</div>
+      <div class="hero-pill"><span class="ico">📊</span> GPU comparison</div>
+    </div>
+  </div>
+  <div class="scroll-cue"><span>Scroll</span><div class="chevron"></div></div>
+</section>
+
+<!-- ══════ NAV ══════ -->
+<nav class="nav" id="nav">
+  <a href="#s1" class="active">① Parameters</a>
+  <a href="#s2">② VRAM</a>
+  <a href="#s3">③ CPU vs GPU</a>
+  <a href="#s4">④ Precision</a>
+  <a href="#s5">⑤ Inference</a>
+  <a href="#s6">⑥ Training</a>
+  <a href="#s7">⑦ Speed</a>
+  <a href="#s8">⑧ Calculator</a>
+  <a href="#s9">⑨ GPU Guide</a>
+</nav>
+
+<!-- ═══════════════════════════════════════════
+     STEP 1 — WHAT IS A PARAMETER
+     ═══════════════════════════════════════════ -->
+<div class="sec" id="s1">
+  <div class="sec-head">
+    <div class="sec-num">01</div>
+    <div class="sec-txt"><div class="tag">Foundation</div><h2>What Is a Parameter?</h2></div>
+  </div>
+  <p class="lead">Every model is described by a number: <strong>7B, 13B, 70B.</strong> "B" = billion parameters. But what actually <em>is</em> one?</p>
+
+  <div class="analogy">
+    <div class="a-tag">🎛️ Think of it like this</div>
+    <p>Imagine a giant mixing board with <strong>7 billion dials</strong>. Each dial controls one tiny sliver of the model's "knowledge." During training, every dial gets tweaked thousands of times until the model learns language. Once training is done, those dials are <em>locked in place forever</em> — their final values ARE the model. When you download a model file, you're downloading the positions of all those dials.</p>
+  </div>
+
+  <div class="calc">
+    <div class="calc-hdr"><div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div><div class="lbl">Scale of "7 Billion"</div></div>
+    <div class="c-lines">
+      <div class="c-line">
+        <div class="c-n">1</div>
+        <div class="c-body">
+          <div class="c-formula"><span class="f-n">7B</span> <span class="f-e">=</span> <span class="f-n">7,000,000,000</span> individual numbers</div>
+          <div class="c-why">Each one is a small decimal like <code>0.00347</code> or <code>-1.284</code>. Together they encode enough pattern to write code and hold conversations.</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">2</div>
+        <div class="c-body">
+          <div class="c-formula">If you wrote one number per second: <span class="f-n">7,000,000,000</span> ÷ <span class="f-n">60</span> ÷ <span class="f-n">60</span> ÷ <span class="f-n">24</span> ÷ <span class="f-n">365</span></div>
+          <div class="c-why">Converting seconds → minutes → hours → days → years to grasp the scale.</div>
+          <div class="c-res c">7,000,000,000 ÷ 31,536,000 sec/year ≈ <strong>221 years</strong> of non-stop writing</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">3</div>
+        <div class="c-body">
+          <div class="c-formula">A <span class="f-n">70B</span> model has exactly <span class="f-n">10×</span> more parameters than 7B</div>
+          <div class="c-why">More parameters = more capacity to learn patterns. But also = more memory needed = slower. It's a tradeoff.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     STEP 2 — WHAT IS VRAM
+     ═══════════════════════════════════════════ -->
+<div class="sec" id="s2">
+  <div class="sec-head">
+    <div class="sec-num">02</div>
+    <div class="sec-txt"><div class="tag">Hardware</div><h2>What Is VRAM?</h2></div>
+  </div>
+  <p class="lead">VRAM is the <strong>#1 bottleneck</strong> when running LLMs. If the model doesn't fit in VRAM, it won't run (or will be painfully slow).</p>
+
+  <div class="analogy">
+    <div class="a-tag">🍳 Think of it like this</div>
+    <p>You're cooking, but you can <strong>only use ingredients already on your counter</strong> — you can't reach into the pantry mid-recipe. <strong>VRAM = the counter. Model parameters = the ingredients.</strong> If all 7 billion "ingredients" don't fit on the counter, the recipe fails.</p>
+  </div>
+
+  <div class="cmp">
+    <div class="cmp-card" style="border-color:var(--gold3)">
+      <h4 style="color:var(--gold)">💻 System RAM (DDR5)</h4>
+      <p style="font-family:'DM Mono',monospace;font-size:20px;color:var(--gold);margin-bottom:6px;font-weight:500">32–128 GB</p>
+      <p>Tied to your <strong>CPU</strong>. Your OS, browser, apps live here. Slow path to GPU. <em>Cannot substitute for VRAM.</em></p>
+    </div>
+    <div class="cmp-card" style="border-color:var(--cyan3)">
+      <h4 style="color:var(--cyan)">🖥️ VRAM (GDDR6X / HBM)</h4>
+      <p style="font-family:'DM Mono',monospace;font-size:20px;color:var(--cyan);margin-bottom:6px;font-weight:500">8–80 GB</p>
+      <p>Tied to your <strong>GPU</strong>. Blazing fast. The model weights <em>must live here</em> to be processed at speed.</p>
+    </div>
+  </div>
+
+  <div class="calc">
+    <div class="calc-hdr"><div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div><div class="lbl">Why you can't just "use more system RAM"</div></div>
+    <div class="c-lines">
+      <div class="c-line">
+        <div class="c-n">1</div>
+        <div class="c-body">
+          <div class="c-formula">GPU reads weights from <span class="f-v">VRAM</span> at ~<span class="f-n">1,000 GB/s</span></div>
+          <div class="c-why">This is the speed the GPU expects data at. It's why inference is fast.</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">2</div>
+        <div class="c-body">
+          <div class="c-formula">PCIe bus (VRAM ↔ System RAM) runs at ~<span class="f-n">32 GB/s</span></div>
+          <div class="c-why">The bridge between your GPU and system RAM is <strong>30× slower</strong> than VRAM itself.</div>
+          <div class="c-res a">1,000 ÷ 32 = 31× speed difference — offloading to RAM kills performance</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">3</div>
+        <div class="c-body">
+          <div class="c-formula">Conclusion: <span class="f-v">Model must fit in VRAM</span></div>
+          <div class="c-why">"Offloading" to system RAM is a last resort — it works but makes generation extremely slow. The goal is always: fit the model in VRAM.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     STEP 3 — CPU vs GPU
+     ═══════════════════════════════════════════ -->
+<div class="sec" id="s3">
+  <div class="sec-head">
+    <div class="sec-num">03</div>
+    <div class="sec-txt"><div class="tag">Hardware</div><h2>Why GPU and Not CPU?</h2></div>
+  </div>
+  <p class="lead">An LLM doesn't need a "smart" processor. It needs to do the <em>same simple math</em> billions of times <em>at once</em>. That's a GPU.</p>
+
+  <div class="cmp">
+    <div class="cmp-card">
+      <h4>🏆 CPU — A Few Geniuses</h4>
+      <div class="cores" id="cpuCores"></div>
+      <p><strong>4–64 powerful cores.</strong> Each can do anything. But sequential — one task at a time per core. Like one genius mathematician working alone.</p>
+    </div>
+    <div class="cmp-card">
+      <h4>🐜 GPU — An Army</h4>
+      <div class="cores" id="gpuCores"></div>
+      <p><strong>3,000–18,000+ tiny cores.</strong> Each is simple. But they all fire <em>simultaneously</em> on the same operation. Like 10,000 workers each multiplying one number pair.</p>
+    </div>
+  </div>
+
+  <div class="calc">
+    <div class="calc-hdr"><div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div><div class="lbl">What an LLM actually does when you type one word</div></div>
+    <div class="c-lines">
+      <div class="c-line">
+        <div class="c-n">1</div>
+        <div class="c-body">
+          <div class="c-formula">Your word → a vector of <span class="f-n">4,096</span> numbers (an "embedding")</div>
+          <div class="c-why">"Hello" becomes something like [0.34, −0.12, 0.89, 0.01, …] with 4,096 values. This is how the model "sees" language — as lists of numbers.</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">2</div>
+        <div class="c-body">
+          <div class="c-formula">That vector × a <span class="f-n">4096 × 4096</span> weight matrix</div>
+          <div class="c-why">This is ONE matrix multiplication. How many individual multiply-and-add operations does that need?</div>
+          <div class="c-res c">4,096 × 4,096 = <strong>16,777,216</strong> operations — for a single step in one layer</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">3</div>
+        <div class="c-body">
+          <div class="c-formula">A 7B model has <span class="f-n">~32 layers</span>, each with <span class="f-n">multiple</span> matrix multiplications</div>
+          <div class="c-why">Attention layers (Q, K, V matrices) + feed-forward layers. Each layer does billions of multiplications.</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">4</div>
+        <div class="c-body">
+          <div class="c-formula">Total per token: ~<span class="f-n">14 billion</span> floating-point operations</div>
+          <div class="c-why">A CPU core at 5 GHz might do ~5 billion ops/sec → one token would take ~3 seconds. A GPU with 16,000 cores does all 14 billion in <strong>milliseconds</strong>. That's the entire reason we use GPUs.</div>
+          <div class="c-res g">GPU: ~5ms per token &nbsp; vs &nbsp; CPU: ~2,800ms per token → GPU is <strong>500×+ faster</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     STEP 4 — PRECISION / BITS
+     ═══════════════════════════════════════════ -->
+<div class="sec" id="s4">
+  <div class="sec-head">
+    <div class="sec-num">04</div>
+    <div class="sec-txt"><div class="tag">Key Concept</div><h2>Precision — Bits Per Number</h2></div>
+  </div>
+  <p class="lead">Each parameter is a number. That number can be stored in different amounts of detail. This is <strong>the single biggest lever</strong> for fitting models on smaller GPUs.</p>
+
+  <div class="analogy">
+    <div class="a-tag">📷 Think of it like this</div>
+    <p>A photo at <strong>4K resolution</strong> (FP32) is crystal clear but eats 20 MB. Compress it to <strong>720p</strong> (INT4) and it's slightly softer but only 2 MB. For most uses, 720p is totally fine. Same idea: quantizing a model trades a tiny bit of quality for a <em>massive</em> size reduction.</p>
+  </div>
+
+  <!-- precision visual stack -->
+  <div class="prec-stack" id="precStack"></div>
+
+  <div class="calc">
+    <div class="calc-hdr"><div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div><div class="lbl">Full calculation — 7B model at every precision level</div></div>
+    <div class="c-lines">
+      <div class="c-line">
+        <div class="c-n">★</div>
+        <div class="c-body">
+          <div class="c-formula">The Master Formula: <span class="f-v">Size (GB)</span> <span class="f-e">=</span> <span class="f-v">Parameters</span> <span class="f-o">×</span> <span class="f-v">Bytes/Param</span> <span class="f-o">÷</span> <span class="f-n">1,073,741,824</span></div>
+          <div class="c-why">Why 1,073,741,824? Because that's exactly how many bytes are in 1 GB (1024 × 1024 × 1024). We divide by this to convert bytes → GB.</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">1</div>
+        <div class="c-body">
+          <div class="c-formula">FP32 (4 bytes/param): <span class="f-n">7,000,000,000</span> <span class="f-o">×</span> <span class="f-n">4</span> <span class="f-e">=</span> <span class="f-n">28,000,000,000</span> bytes</div>
+          <div class="c-why">Each parameter stored as a full 32-bit float: 1 sign bit + 8 exponent bits + 23 mantissa bits = maximum precision.</div>
+          <div class="c-res r">28,000,000,000 ÷ 1,073,741,824 = <strong>26.08 GB</strong></div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">2</div>
+        <div class="c-body">
+          <div class="c-formula">FP16 (2 bytes/param): <span class="f-n">7,000,000,000</span> <span class="f-o">×</span> <span class="f-n">2</span> <span class="f-e">=</span> <span class="f-n">14,000,000,000</span> bytes</div>
+          <div class="c-why">Half the bits → half the size. Quality barely changes. This is the standard for inference on good GPUs.</div>
+          <div class="c-res a">14,000,000,000 ÷ 1,073,741,824 = <strong>13.04 GB</strong></div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">3</div>
+        <div class="c-body">
+          <div class="c-formula">INT8 (1 byte/param): <span class="f-n">7,000,000,000</span> <span class="f-o">×</span> <span class="f-n">1</span> <span class="f-e">=</span> <span class="f-n">7,000,000,000</span> bytes</div>
+          <div class="c-why">8 bits = 1 byte. Each number is now an integer 0–255. A smart mapping ("quantization") makes this work with minimal quality loss.</div>
+          <div class="c-res c">7,000,000,000 ÷ 1,073,741,824 = <strong>6.52 GB</strong></div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">4</div>
+        <div class="c-body">
+          <div class="c-formula">INT4 (0.5 bytes/param): <span class="f-n">7,000,000,000</span> <span class="f-o">×</span> <span class="f-n">0.5</span> <span class="f-e">=</span> <span class="f-n">3,500,000,000</span> bytes</div>
+          <div class="c-why">4 bits = half a byte. Only 16 possible values per parameter. Tools like <code>llama.cpp</code> and <code>Ollama</code> use this by default because it's the sweet spot: small enough to fit on consumer GPUs, quality loss is acceptable for most tasks.</div>
+          <div class="c-res g">3,500,000,000 ÷ 1,073,741,824 = <strong>3.26 GB</strong> ← fits on an 8 GB GPU!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     STEP 5 — INFERENCE VRAM
+     ═══════════════════════════════════════════ -->
+<div class="sec" id="s5">
+  <div class="sec-head">
+    <div class="sec-num">05</div>
+    <div class="sec-txt"><div class="tag">Running a Model</div><h2>Inference VRAM — The Full Formula</h2></div>
+  </div>
+  <p class="lead">"Running" a model = <strong>inference</strong>. You need: the model weights + something called the <strong>KV Cache</strong>. Let's calculate both.</p>
+
+  <div class="analogy">
+    <div class="a-tag">📚 Think of it like this</div>
+    <p>The <strong>model weights</strong> are the textbook. The <strong>KV Cache</strong> is your scratch notepad — it stores notes about what you've already read in this conversation so the model doesn't have to re-read everything from scratch for every single new word. <em>Longer conversation = bigger notepad.</em></p>
+  </div>
+
+  <div class="calc">
+    <div class="calc-hdr"><div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div><div class="lbl">Full worked example — CodeLlama 7B, INT4, 4K context</div></div>
+    <div class="c-lines">
+      <div class="c-line">
+        <div class="c-n">1</div>
+        <div class="c-body">
+          <div class="c-formula">① Model Weights (from Step 4)</div>
+          <div class="c-why">We already calculated this. INT4 = 0.5 bytes per param.</div>
+          <div class="c-res c">7B × 0.5 bytes ÷ 1,073,741,824 = <strong>3.26 GB</strong></div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">2</div>
+        <div class="c-body">
+          <div class="c-formula">② KV Cache = <span class="f-n">2</span> <span class="f-o">×</span> <span class="f-v">layers</span> <span class="f-o">×</span> <span class="f-v">hidden_size</span> <span class="f-o">×</span> <span class="f-v">context_len</span> <span class="f-o">×</span> <span class="f-v">bytes_per_value</span></div>
+          <div class="c-why">The "2" is for Key and Value (hence KV). CodeLlama-7B has: <strong>32 layers</strong>, <strong>hidden size 4096</strong>, context length <strong>4096 tokens</strong>, cache stored in <strong>FP16 (2 bytes)</strong> for accuracy.</div>
+          <div class="c-res c">2 × 32 × 4,096 × 4,096 × 2 = 2,147,483,648 bytes ÷ 1,073,741,824 = <strong>2.0 GB</strong></div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">3</div>
+        <div class="c-body">
+          <div class="c-formula">③ Framework Overhead (~5%)</div>
+          <div class="c-why">PyTorch / llama.cpp needs a little buffer for internal operations, temporary tensors, etc. ~5% is a safe estimate.</div>
+          <div class="c-res c">(3.26 + 2.0) × 1.05 = <strong>5.52 GB</strong></div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">✓</div>
+        <div class="c-body">
+          <div class="c-formula">Final: Total VRAM = <span class="f-r">5.52 GB</span></div>
+          <div class="c-why">An RTX 4060 has 8 GB VRAM. We need 5.52 GB. That leaves ~2.5 GB headroom — plenty of room to extend to an 8K context if needed.</div>
+          <div class="c-res g">✓ RTX 4060 (8 GB) works perfectly for CodeLlama 7B at INT4</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     STEP 6 — TRAINING
+     ═══════════════════════════════════════════ -->
+<div class="sec" id="s6">
+  <div class="sec-head">
+    <div class="sec-num">06</div>
+    <div class="sec-txt"><div class="tag">Training vs Running</div><h2>Why Training Needs So Much More</h2></div>
+  </div>
+  <p class="lead">Training is <strong>10–20× heavier</strong> than inference on the same model. Here's exactly where every byte goes — and why.</p>
+
+  <div class="analogy">
+    <div class="a-tag">🎨 Think of it like this</div>
+    <p><strong>Inference</strong> = an artist painting a picture using skills they already learned. Fast, lean. <strong>Training</strong> = the artist learning to paint. They must remember every single mistake, trace it back through every brush stroke to figure out what went wrong, then adjust. That "remembering every mistake" is what eats all the extra memory.</p>
+  </div>
+
+  <div class="calc">
+    <div class="calc-hdr"><div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div><div class="lbl">Training VRAM breakdown — 7B model, full precision</div></div>
+    <div class="c-lines">
+      <div class="c-line">
+        <div class="c-n">1</div>
+        <div class="c-body">
+          <div class="c-formula">① Model Weights — stored in <span class="f-v">FP16</span> during training</div>
+          <div class="c-why">Training uses FP16 (not INT4) because the model needs to be updated. Quantized formats can't be trained on directly.</div>
+          <div class="c-res c">7B × 2 bytes = <strong>13.04 GB</strong></div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">2</div>
+        <div class="c-body">
+          <div class="c-formula">② Gradients — also <span class="f-v">FP16</span></div>
+          <div class="c-why">After each prediction, "backpropagation" calculates <em>how much each parameter contributed to the error</em>. These numbers (gradients) are stored in a copy the same size as the model.</div>
+          <div class="c-res c">7B × 2 bytes = <strong>13.04 GB</strong></div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">3</div>
+        <div class="c-body">
+          <div class="c-formula">③ Optimizer States — <span class="f-v">FP32</span> — the big one</div>
+          <div class="c-why">The standard optimizer is <strong>Adam</strong>. For every parameter, Adam stores <em>two extra numbers</em>: "momentum" (running average of gradients) and "variance" (running average of squared gradients). Both in FP32 for stability. So: <strong>2 states × 4 bytes = 8 bytes per parameter.</strong></div>
+          <div class="c-res r">7B × 8 bytes = <strong>52.15 GB</strong> ← bigger than most consumer GPUs alone!</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">4</div>
+        <div class="c-body">
+          <div class="c-formula">④ Activations — saved for backpropagation</div>
+          <div class="c-why">During the forward pass, every intermediate result (every layer's output) must be <em>saved in memory</em> so backprop can use them to compute gradients. Size depends on batch size and sequence length. Roughly 1–3× model size.</div>
+          <div class="c-res a">~13–39 GB (varies with batch size &amp; sequence length)</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">✓</div>
+        <div class="c-body">
+          <div class="c-formula">Total Training VRAM: <span class="f-n">13</span> + <span class="f-n">13</span> + <span class="f-n">52</span> + <span class="f-n">~26</span> (mid est.)</div>
+          <div class="c-why">This is why training a 7B model from scratch requires multi-GPU setups with datacenter cards.</div>
+          <div class="c-res r">≈ <strong>104 GB</strong> minimum → needs A100 80GB or multiple GPUs</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">📊</div>
+        <div class="c-body">
+          <div class="c-formula">Inference vs Training side by side</div>
+          <div class="c-why">Inference has <em>no</em> gradients, <em>no</em> optimizer states, <em>no</em> saved activations.</div>
+          <div class="c-res g">Inference (INT4): <strong>~5.5 GB</strong> &nbsp;|&nbsp; Training (FP16): <strong>~104 GB</strong> &nbsp;→&nbsp; Training is <strong>~19×</strong> heavier</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="analogy" style="border-color:var(--green);background:var(--green2)">
+    <div class="a-tag" style="color:var(--green)">💡 The practical shortcut: LoRA fine-tuning</div>
+    <p>You almost never need to train from scratch. <strong>LoRA</strong> freezes 99% of the model and trains tiny adapter layers on top. This cuts training VRAM by <strong>4–8×</strong>. A 7B model can be LoRA fine-tuned on a single 24 GB RTX 4090. <strong>QLoRA</strong> goes further — quantize the frozen model to INT4 first, then LoRA on top. A 13B model can be fine-tuned on a single 16 GB GPU.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     STEP 7 — SPEED / TOKENS PER SECOND
+     ═══════════════════════════════════════════ -->
+<div class="sec" id="s7">
+  <div class="sec-head">
+    <div class="sec-num">07</div>
+    <div class="sec-txt"><div class="tag">Performance</div><h2>How Fast? Tokens Per Second</h2></div>
+  </div>
+  <p class="lead">VRAM = <em>can it fit?</em> Memory bandwidth = <em>how fast does it run?</em> Bandwidth is often the real bottleneck during generation.</p>
+
+  <div class="analogy">
+    <div class="a-tag">🚗 Think of it like this</div>
+    <p>VRAM is a <strong>parking lot</strong> (how much you can store). Memory bandwidth is the <strong>width of the road out</strong> (how fast data can leave). A massive parking lot with a narrow road is still slow. For every token generated, the GPU must read the <em>entire model</em> out of VRAM through that road.</p>
+  </div>
+
+  <div class="calc">
+    <div class="calc-hdr"><div class="dots"><span class="r"></span><span class="y"></span><span class="g"></span></div><div class="lbl">Tokens/sec calculation — RTX 4090 + CodeLlama 7B</div></div>
+    <div class="c-lines">
+      <div class="c-line">
+        <div class="c-n">1</div>
+        <div class="c-body">
+          <div class="c-formula">Why bandwidth matters more than cores here</div>
+          <div class="c-why">During generation (the "decode phase"), tokens come out <strong>one at a time</strong>. Each new token requires reading ALL model weights from VRAM. The GPU's compute cores finish in microseconds — they're just waiting for the data to arrive. <strong>Speed = how fast VRAM can be read.</strong></div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">2</div>
+        <div class="c-body">
+          <div class="c-formula"><span class="f-v">Tokens/sec</span> <span class="f-e">≈</span> <span class="f-v">Bandwidth (GB/s)</span> <span class="f-o">÷</span> <span class="f-v">Model Size (GB)</span></div>
+          <div class="c-why">This is the simplified theoretical max. Real-world is about 50–70% of this due to overhead, batching inefficiency, etc.</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">3</div>
+        <div class="c-body">
+          <div class="c-formula">RTX 4090: bandwidth = <span class="f-n">1,008 GB/s</span> &nbsp; Model (FP16) = <span class="f-n">13.04 GB</span></div>
+          <div class="c-why">These are the two numbers we need. Bandwidth is a spec on the GPU's datasheet. Model size we calculated in Step 4.</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">4</div>
+        <div class="c-body">
+          <div class="c-formula"><span class="f-n">1,008</span> <span class="f-o">÷</span> <span class="f-n">13.04</span> <span class="f-e">=</span> <span class="f-n">77.3</span> tokens/sec (theoretical)</div>
+          <div class="c-why">Now apply real-world efficiency. ~60% is a reasonable estimate for single-stream inference.</div>
+          <div class="c-res c">77.3 × 0.60 = <strong>~46 tokens/sec</strong> in FP16</div>
+        </div>
+      </div>
+      <div class="c-line">
+        <div class="c-n">5</div>
+        <div class="c-body">
+          <div class="c-formula">Now at INT4: model = <span class="f-n">3.26 GB</span> (4× smaller)</div>
+          <div class="c-why">Same bandwidth. But the model is 4× smaller, so the road empties 4× faster per token. Same calculation:</div>
+          <div class="c-res g">1,008 ÷ 3.26 × 0.60 = <strong>~185 tokens/sec</strong> in INT4 — snappy!</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     STEP 8 — LIVE CALCULATOR
+     ═══════════════════════════════════════════ -->
+<div class="sec" id="s8">
+  <div class="sec-head">
+    <div class="sec-num">08</div>
+    <div class="sec-txt"><div class="tag">Interactive</div><h2>Live VRAM Calculator</h2></div>
+  </div>
+  <p class="lead">Plug in any model size, precision, context length, and mode. See the exact VRAM needed and which GPUs can handle it — in real time.</p>
+
+  <div class="panel">
+    <h3>VRAM Estimator</h3>
+    <p class="lead">Change any value and the result updates instantly</p>
+    <div class="inp-row">
+      <label>Model Size (Billions)</label>
+      <input type="number" id="calcParams" value="7" min="0.5" max="700" step="0.5" oninput="runCalc()">
+    </div>
+    <div class="inp-row">
+      <label>Precision</label>
+      <select id="calcPrec" onchange="runCalc()">
+        <option value="4">FP32 — 4 bytes/param</option>
+        <option value="2" selected>FP16 — 2 bytes/param</option>
+        <option value="1">INT8 — 1 byte/param</option>
+        <option value="0.5">INT4 — 0.5 bytes/param ★</option>
+        <option value="0.375">INT3 — 3 bit</option>
+        <option value="0.25">INT2 — 2 bit</option>
+      </select>
+    </div>
+    <div class="inp-row">
+      <label>Context Length (tokens)</label>
+      <select id="calcCtx" onchange="runCalc()">
+        <option value="512">512</option>
+        <option value="2048">2,048</option>
+        <option value="4096" selected>4,096</option>
+        <option value="8192">8,192</option>
+        <option value="32768">32,768</option>
+        <option value="128000">128,000</option>
+      </select>
+    </div>
+    <div class="inp-row">
+      <label>Mode</label>
+      <select id="calcMode" onchange="runCalc()">
+        <option value="inf">Inference (run the model)</option>
+        <option value="train">Full Training</option>
+        <option value="lora">LoRA Fine-Tune</option>
+      </select>
+    </div>
+
+    <div class="result-box">
+      <div class="res-main">
+        <div class="big" id="calcResult" style="color:var(--cyan)">—</div>
+        <div class="big-lbl">Total VRAM Needed</div>
+      </div>
+      <div class="res-detail" id="calcBreakdown"></div>
+    </div>
+
+    <div class="gpu-suggest" id="gpuSuggest">
+      <span class="lbl">Fits on →</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     STEP 9 — GPU BUYING GUIDE
+     ═══════════════════════════════════════════ -->
+<div class="sec" id="s9">
+  <div class="sec-head">
+    <div class="sec-num">09</div>
+    <div class="sec-txt"><div class="tag">Final Guide</div><h2>Which GPU Should You Buy?</h2></div>
+  </div>
+  <p class="lead">Now that you understand <em>why</em> everything works, here are the real-world picks — with specs, prices, and what each can run.</p>
+
+  <!-- GPU comparison bars -->
+  <div class="bar-section" id="gpuBars"></div>
+
+  <!-- Model → GPU mapping table -->
+  <h3 style="font-size:15px;color:var(--t1);margin:28px 0 10px;font-weight:500">Coding Models → Minimum GPU Needed</h3>
+  <div class="model-tbl" id="modelTable"></div>
+
+  <!-- Buying recommendations -->
+  <h3 style="font-size:15px;color:var(--t1);margin:28px 0 10px;font-weight:500">Recommendations by Budget</h3>
+  <div class="model-tbl" id="buyTable"></div>
+
+  <!-- Software tips -->
+  <h3 style="font-size:15px;color:var(--t1);margin:28px 0 10px;font-weight:500">Software to Get Started</h3>
+  <div class="tips">
+    <div class="tip"><div class="t-ico">🦙</div><h5>Ollama</h5><p>Easiest setup. <code>ollama run codellama</code> — one command downloads and runs a model. Best for beginners.</p></div>
+    <div class="tip"><div class="t-ico">⚡</div><h5>llama.cpp</h5><p>Maximum control. Supports every quantization format. Runs on CPU too (slower). Great for tuning performance.</p></div>
+    <div class="tip"><div class="t-ico">🚀</div><h5>vLLM</h5><p>Best for serving multiple requests. Uses "PagedAttention" to handle concurrent users efficiently. Production-grade.</p></div>
+    <div class="tip"><div class="t-ico">🤗</div><h5>HuggingFace</h5><p>Largest model library. Use <code>transformers</code> + <code>bitsandbytes</code> for quantized loading. Best ecosystem.</p></div>
+  </div>
+</div>
+
+<div class="footer">
+  All VRAM estimates are approximate and vary by framework &nbsp;·&nbsp; GPU prices as of early 2025 &nbsp;·&nbsp; Bandwidth figures are peak theoretical &nbsp;·&nbsp; Built as an interactive reference
+</div>
+
+<!-- ══════════════════════════════════════════════
+     JAVASCRIPT — ALL INTERACTIVITY
+     ══════════════════════════════════════════════ -->
+<script>
+// ─── CPU/GPU cores visuals ───
+(function(){
+  let h='';
+  for(let i=0;i<6;i++) h+=`<div class="core big" style="width:30px;height:30px;background:var(--gold);border-radius:6px;opacity:.85"></div>`;
+  document.getElementById('cpuCores').innerHTML=h;
+  h='';
+  for(let i=0;i<120;i++) h+=`<div class="core" style="width:14px;height:14px;background:var(--cyan);border-radius:3px;opacity:${.25+Math.random()*.6}"></div>`;
+  document.getElementById('gpuCores').innerHTML=h;
+})();
+
+// ─── Precision stack ───
+(function(){
+  const d=[
+    {bits:32,name:'FP32',desc:'Full precision. Training default. Maximum accuracy.',color:'var(--coral)',pct:100,size:'26.08 GB'},
+    {bits:16,name:'FP16 / BF16',desc:'Half precision. Near-lossless. Standard inference format.',color:'var(--gold)',pct:50,size:'13.04 GB'},
+    {bits:8,name:'INT8',desc:'8-bit integer. Very small quality loss. Efficient.',color:'var(--cyan)',pct:25,size:'6.52 GB'},
+    {bits:4,name:'INT4 ★',desc:'The sweet spot. Default in Ollama & llama.cpp. Small trade-off.',color:'var(--green)',pct:12.5,size:'3.26 GB'},
+  ];
+  document.getElementById('precStack').innerHTML=d.map(i=>`
+    <div class="prec-row">
+      <div class="bits" style="color:${i.color}">${i.bits}</div>
+      <div class="info"><h5>${i.name}</h5><p>${i.desc}</p></div>
+      <div class="bar-wrap">
+        <div class="bar-lbl" style="color:${i.color}">${i.size}</div>
+        <div class="bar-bg"><div class="bar-fg" style="width:${i.pct}%;background:${i.color}"></div></div>
+      </div>
+    </div>
+  `).join('');
+})();
+
+// ─── GPU Bars ───
+(function(){
+  const gpus=[
+    {name:'RTX 4060 Ti',vram:16,bw:288,color:'#4ade80'},
+    {name:'RTX 4070 Ti S',vram:16,bw:504,color:'#4ade80'},
+    {name:'RTX 4090',vram:24,bw:1008,color:'#00d4aa'},
+    {name:'RTX 5090',vram:32,bw:1792,color:'#9b7bea'},
+    {name:'A100 80GB',vram:80,bw:2039,color:'#e8b84b'},
+    {name:'H100 SXM',vram:80,bw:3350,color:'#e8b84b'},
+  ];
+  const mV=Math.max(...gpus.map(g=>g.vram));
+  const mB=Math.max(...gpus.map(g=>g.bw));
+  let h='<div><div class="bar-section-title">VRAM (Gigabytes)</div>';
+  gpus.forEach(g=>{
+    const p=(g.vram/mV)*100;
+    h+=`<div class="bar-group">
+      <div class="bar-top"><span class="nm">${g.name}</span><span class="vl">${g.vram} GB</span></div>
+      <div class="bar-bg2"><div class="bar-fg2" style="width:${p}%;background:${g.color}">${g.vram>=24?g.vram+' GB':''}</div></div>
+    </div>`;
+  });
+  h+='</div><div><div class="bar-section-title">Memory Bandwidth (GB/s)</div>';
+  gpus.forEach(g=>{
+    const p=(g.bw/mB)*100;
+    h+=`<div class="bar-group">
+      <div class="bar-top"><span class="nm">${g.name}</span><span class="vl">${g.bw} GB/s</span></div>
+      <div class="bar-bg2"><div class="bar-fg2" style="width:${p}%;background:${g.color}">${g.bw>=500?g.bw+' GB/s':''}</div></div>
+    </div>`;
+  });
+  h+='</div>';
+  document.getElementById('gpuBars').innerHTML=h;
+})();
+
+// ─── Model Table ───
+(function(){
+  const models=[
+    {name:'CodeLlama-7B',sub:'Meta · 7B',i4:'3.9 GB',f16:'13 GB',gpu:'RTX 4060 (8GB)',tag:'tg',tl:'Easy'},
+    {name:'DeepSeek-Coder-6.7B',sub:'DeepSeek · 6.7B',i4:'3.7 GB',f16:'12.5 GB',gpu:'RTX 4060 (8GB)',tag:'tg',tl:'Easy'},
+    {name:'Qwen2.5-Coder-7B',sub:'Alibaba · 7B',i4:'4.2 GB',f16:'14 GB',gpu:'RTX 4060 (8GB)',tag:'tg',tl:'Easy'},
+    {name:'CodeLlama-13B',sub:'Meta · 13B',i4:'7.5 GB',f16:'25 GB',gpu:'RTX 4060 Ti 16GB',tag:'tg',tl:'Easy'},
+    {name:'DeepSeek-Coder-33B',sub:'DeepSeek · 33B',i4:'18.5 GB',f16:'62 GB',gpu:'RTX 4090 (24GB)',tag:'ta',tl:'Mid'},
+    {name:'Qwen2.5-Coder-32B',sub:'Alibaba · 32B',i4:'17.5 GB',f16:'60 GB',gpu:'RTX 4090 (24GB)',tag:'ta',tl:'Mid'},
+    {name:'CodeLlama-70B',sub:'Meta · 70B',i4:'38 GB',f16:'131 GB',gpu:'RTX 5090 / A6000',tag:'tr',tl:'Heavy'},
+  ];
+  const el=document.getElementById('modelTable');
+  el.innerHTML=`
+    <div class="mtbl-hdr"><span>Model</span><span>VRAM Needed (INT4 / FP16) → Min GPU</span><span>Difficulty</span></div>
+  `+models.map(m=>`
+    <div class="mtbl-row">
+      <div><div class="m-name">${m.name}</div><div class="m-sub">${m.sub}</div></div>
+      <div class="m-need">INT4: <strong>${m.i4}</strong> &nbsp;|&nbsp; FP16: <strong>${m.f16}</strong> &nbsp;→&nbsp; <strong>${m.gpu}</strong></div>
+      <div><span class="tag ${m.tag}">${m.tl}</span></div>
+    </div>
+  `).join('');
+})();
+
+// ─── Buy Table ───
+(function(){
+  const buys=[
+    {name:'RTX 4060 Ti 16GB',price:'~$300',vram:'16 GB',bw:'288 GB/s',runs:'7B FP16, 13B INT4. Solid entry point.',tag:'tg',tl:'Entry'},
+    {name:'RTX 4070 Ti Super',price:'~$550',vram:'16 GB',bw:'504 GB/s',runs:'Same VRAM as above but ~2× bandwidth = faster generation.',tag:'tg',tl:'Mid'},
+    {name:'RTX 4090',price:'~$1,000',vram:'24 GB',bw:'1,008 GB/s',runs:'13B FP16, 33B INT4, 70B INT4 with offloading. ★ Best overall.',tag:'ta',tl:'★ Pick'},
+    {name:'RTX 5090',price:'~$2,000',vram:'32 GB',bw:'1,792 GB/s',runs:'70B INT4 natively. Future-proof. Fastest consumer GPU.',tag:'ta',tl:'Pro'},
+    {name:'A100 80GB',price:'~$10K+',vram:'80 GB',bw:'2,039 GB/s',runs:'70B FP16 natively. Training small models. Everything runs.',tag:'tr',tl:'DC'},
+  ];
+  const el=document.getElementById('buyTable');
+  el.innerHTML=`
+    <div class="mtbl-hdr"><span>GPU</span><span>Price / Specs / What It Runs</span><span>Tier</span></div>
+  `+buys.map(b=>`
+    <div class="mtbl-row">
+      <div><div class="m-name">${b.name}</div><div class="m-sub">${b.price} · ${b.vram} · ${b.bw}</div></div>
+      <div class="m-need">${b.runs}</div>
+      <div><span class="tag ${b.tag}">${b.tl}</span></div>
+    </div>
+  `).join('');
+})();
+
+// ═══════════════════════════════════════════
+// LIVE CALCULATOR
+// ═══════════════════════════════════════════
+const GPUS=[
+  {name:'RTX 4060',vram:8},
+  {name:'RTX 4060 Ti 16G',vram:16},
+  {name:'RTX 4070 Super',vram:12},
+  {name:'RTX 4070 Ti S',vram:16},
+  {name:'RTX 4090',vram:24},
+  {name:'RTX 5090',vram:32},
+  {name:'A5000',vram:24},
+  {name:'A6000',vram:48},
+  {name:'A100 40GB',vram:40},
+  {name:'A100 80GB',vram:80},
+  {name:'H100 SXM',vram:80},
+];
+
+function runCalc(){
+  const P=parseFloat(document.getElementById('calcParams').value)||7;
+  const B=parseFloat(document.getElementById('calcPrec').value);
+  const ctx=parseInt(document.getElementById('calcCtx').value);
+  const mode=document.getElementById('calcMode').value;
+
+  // weights
+  const wGB=(P*1e9*B)/(1024**3);
+
+  // KV cache — approximate: layers ≈ P*4.57 (rough), hidden ≈ sqrt(P*1e9/6)*1.2 capped
+  // Simpler: use a known ratio. KV ≈ 0.00019 * P(B) * ctx/1024 * (B<=0.5?2:B) GB
+  const kvBytesPerParam = (B<=0.5)?2:B; // KV cache typically kept at higher precision
+  const approxLayers = Math.round(P*4.57);
+  const approxHidden = Math.round(Math.sqrt(P*1e9/6)*1.15);
+  const kvBytes = 2*approxLayers*approxHidden*ctx*kvBytesPerParam;
+  const kvGB = kvBytes/(1024**3);
+
+  let total,bd;
+  if(mode==='inf'){
+    const oh=wGB*0.05;
+    total=wGB+kvGB+oh;
+    bd=`<span class="hl">Weights:</span> ${wGB.toFixed(2)} GB<br>
+        <span class="hl">KV Cache:</span> ${kvGB.toFixed(2)} GB &nbsp;<span style="color:var(--t3)">(ctx: ${Number(ctx).toLocaleString()} tokens)</span><br>
+        <span class="hl">Overhead (5%):</span> ${oh.toFixed(2)} GB`;
+  } else if(mode==='train'){
+    const grad=wGB; // same as weights at training precision
+    // optimizer: always FP32 = 8 bytes/param regardless of model precision
+    const optGB=(P*1e9*8)/(1024**3);
+    const actGB=wGB*2; // rough mid estimate
+    total=wGB+grad+optGB+actGB+kvGB;
+    bd=`<span class="hl">Weights (FP16):</span> ${wGB.toFixed(2)} GB<br>
+        <span class="hl">Gradients:</span> ${grad.toFixed(2)} GB<br>
+        <span class="hl">Optimizer (Adam):</span> ${optGB.toFixed(2)} GB<br>
+        <span class="hl">Activations:</span> ${actGB.toFixed(2)} GB<br>
+        <span class="hl">KV Cache:</span> ${kvGB.toFixed(2)} GB`;
+  } else { // lora
+    const loraAdd=wGB*0.02;
+    const actGB=wGB*0.3;
+    total=wGB+loraAdd+actGB+kvGB;
+    bd=`<span class="hl">Frozen Weights:</span> ${wGB.toFixed(2)} GB<br>
+        <span class="hl">LoRA Adapters:</span> ${loraAdd.toFixed(2)} GB<br>
+        <span class="hl">Activations:</span> ${actGB.toFixed(2)} GB<br>
+        <span class="hl">KV Cache:</span> ${kvGB.toFixed(2)} GB`;
+  }
+
+  // color
+  const el=document.getElementById('calcResult');
+  el.textContent=total.toFixed(1)+' GB';
+  if(total<=8) el.style.color='var(--green)';
+  else if(total<=24) el.style.color='var(--cyan)';
+  else if(total<=48) el.style.color='var(--gold)';
+  else el.style.color='var(--coral)';
+
+  document.getElementById('calcBreakdown').innerHTML=bd;
+
+  // GPU suggestions
+  const fits=GPUS.filter(g=>g.vram>=total*1.1);
+  const sug=document.getElementById('gpuSuggest');
+  if(fits.length){
+    sug.innerHTML='<span class="lbl">Fits on →</span>'+fits.slice(0,5).map(g=>
+      `<span class="gpu-chip">${g.name} (${g.vram}GB)</span>`
+    ).join('');
+  } else {
+    sug.innerHTML='<span class="lbl">Fits on →</span><span class="gpu-chip bad">No single consumer GPU — needs multi-GPU or offloading</span>';
+  }
+}
+runCalc();
+
+// ─── Progress bar ───
+window.addEventListener('scroll',()=>{
+  const s=window.scrollY;
+  const h=document.body.scrollHeight-window.innerHeight;
+  document.getElementById('prog').style.width=(s/h*100)+'%';
+});
+
+// ─── Nav active state on scroll ───
+(function(){
+  const sections=['s1','s2','s3','s4','s5','s6','s7','s8','s9'];
+  const links=document.querySelectorAll('.nav a');
+  const obs=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        links.forEach(l=>l.classList.remove('active'));
+        const match=[...links].find(l=>l.getAttribute('href')==='#'+e.target.id);
+        if(match) match.classList.add('active');
+      }
+    });
+  },{rootMargin:'-40% 0px -50% 0px'});
+  sections.forEach(id=>{const el=document.getElementById(id);if(el)obs.observe(el);});
+})();
+</script>
+</body>
+</html>
